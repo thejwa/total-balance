@@ -48,6 +48,23 @@ public class InvoiceService {
     }
 
     public List<WhoOwesDto> getWhoOwesMe(String username) throws JsonProcessingException {
+        List<WhoOwesDto> result = getWhoOwesDtos(username);
+        result = result.stream().filter(res -> res.getReceiver().equals(username))
+                .collect(Collectors.toList());
+
+        return result;
+    }
+
+
+    public List<WhoOwesDto> getToWhomIOwe(String username) throws JsonProcessingException {
+        List<WhoOwesDto> result = getWhoOwesDtos(username);
+        result = result.stream().filter(res -> res.getPayer().equals(username))
+                .collect(Collectors.toList());
+
+        return result;
+    }
+
+    private List<WhoOwesDto> getWhoOwesDtos(String username) throws JsonProcessingException {
         if (!repository.existsByUsername(username)) {
             throw new RuntimeException("USER WITH GIVEN USERNAME NOT FOUND");
         }
@@ -90,58 +107,6 @@ public class InvoiceService {
                 }
             }
         }
-        result = result.stream().filter(res -> res.getReceiver().equals(username))
-                .collect(Collectors.toList());
-
-        return result;
-    }
-
-    public List<WhoOwesDto> getToWhomIOwe(String username) throws JsonProcessingException {
-        if (!repository.existsByUsername(username)) {
-            throw new RuntimeException("USER WITH GIVEN USERNAME NOT FOUND");
-        }
-        String totalSpending = repository.getTotalSpendingOfUsers();
-        ObjectMapper objectMapper = new ObjectMapper();
-        List<InvoiceDto> invoices = objectMapper.readValue(totalSpending,
-                new TypeReference<List<InvoiceDto>>() {
-                });
-
-        double average = invoices.stream()
-                .mapToDouble(InvoiceDto::getAmount).average().orElse(0);
-
-
-        List<InvoiceDto> receivers = invoices.stream()
-                .filter(invoice -> invoice.getAmount() > average)
-                .collect(Collectors.toList());
-
-        List<WhoOwesDto> result = new ArrayList<>();
-
-        for (InvoiceDto invoice : invoices) {
-            if (invoice.getAmount() <= average) {
-                double amountToPay = average - invoice.getAmount();
-                for (InvoiceDto receiver : receivers) {
-                    if (receiver.getAmount() == 0) continue;
-                    double difference = receiver.getAmount() - average;
-                    if (difference > amountToPay) {
-                        result.add(new WhoOwesDto(receiver.getUsername(),
-                                invoice.getUsername(),
-                                difference - amountToPay));
-                        receiver.setAmount(receiver.getAmount() - (difference - amountToPay));
-                        amountToPay = 0;
-                    } else {
-                        result.add(new WhoOwesDto(receiver.getUsername(),
-                                invoice.getUsername(),
-                                difference));
-                        receiver.setAmount(0);
-                        amountToPay -= difference;
-                    }
-                    if (amountToPay == 0) break;
-                }
-            }
-        }
-        result = result.stream().filter(res -> res.getPayer().equals(username))
-                .collect(Collectors.toList());
-
         return result;
     }
 }
